@@ -1,6 +1,6 @@
 ---
-title: "Search TCA"
-featured_image: "ParkSign.jpg"
+title: "Search"
+featured_image: "icon-search.png"
 sitemap:
   priority : 0.1
 ---
