@@ -1,8 +1,5 @@
  // vanilla js version of https://gist.github.com/sebz/efddfc8fdcb6b480f567
  // adapted from https://gist.github.com/naile/47e3e8aa62c6d1410d7b51b80f13bcfe
- // If the json file gets too big
- // "why not run your 'search' API in a AWS Lambda? upload your index file along
- // with the Lambda code and then set a API Gateway in front of Lambda."
  var lunrIndex,
      $results,
      pagesIndex,
@@ -31,6 +28,9 @@
            boost: 5
          });
          this.field("contents");
+         // Similarity tuning - see https://lunrjs.com/guides/customising.html
+         this.k1(1.4);  // Default = 1.2; > slows down saturation of common words
+         this.b(0);     // 0 - 1; default = .75 0; 0 reduces effect of document length 
 
          // ref is the result item identifier (the page URL)
          this.ref("permalink");
