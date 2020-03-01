@@ -58,7 +58,7 @@
      }
 
      // Only trigger a search when minimumChars, at least, have been provided
-     var query = $search.value;
+     var query = $search.value.trim();
      if (query.length < minimumChars) {
        return;
      }
