@@ -40,8 +40,8 @@
          }
        });
      } else {
-       var err = requestStatus + ", " + error;
-       console.error("Error getting Hugo index file:", json, err);
+       var err = request.status + ", " + error;
+       console.error("Error setting Hugo index file:", json, err);
      }
    };
 
