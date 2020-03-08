@@ -1,108 +1,138 @@
-summaryInclude=60;
+// adapted from https://gist.github.com/naile/47e3e8aa62c6d1410d7b51b80f13bcfe
+// and https://gist.github.com/eddiewebb/735feb48f50f0ddd65ae5606a1cb41ae
+var titleContentSearcher,
+    allContentSearcher,
+    searchResultsList,
+    jsonContent,
+    json = '/index.json',
+    minimumChars = 3,
+    showScores = true,
+    maxResults = 10;
+
 var fuseOptions = {
-  shouldSort: true,
-  includeMatches: true,
-  threshold: 0.0,
-  tokenize:true,
-  location: 0,
-  distance: 100,
-  maxPatternLength: 32,
-  minMatchCharLength: 1,
-  keys: [
-    {name:"title",weight:0.8},
-    {name:"contents",weight:0.5},
-    {name:"tags",weight:0.3},
-    {name:"categories",weight:0.3}
-  ]
+    caseSensitive: true,
+    shouldSort: true,
+    matchAllTokens: true,
+    includeScore: true,
+    includeMatches: true,
+    threshold: 0.50,
+    location: 0,
+    distance: 100,
+    maxPatternLength: 32,
+    minMatchCharLength: 2
 };
 
+var titleContentKeys = [
+        { name: "title", weight: 0.9},
+        { name: "contents", weight: 0.5}
+];
+ 
+var allContentKeys = [
+        { name: "title", weight: 0.9},
+        { name: "contents", weight: 0.5},
+        { name: "tags", weight: 0.01},
+        { name: "categories", weight: 0.3}
+];
+ 
+// Initialize fuse.js using hugo generated index file
+function initFuse() {
+    var request = new XMLHttpRequest();
+    request.open('GET', json, true);
 
-var searchQuery = param("s");
-if(searchQuery){
-  $("#search-query").val(searchQuery);
-  executeSearch(searchQuery);
-}else {
-  $('#search-results').append("<p>Please enter a word or phrase above</p>");
-}
-
-
-
-function executeSearch(searchQuery){
-  $.getJSON( "/index.json", function( data ) {
-    var pages = data;
-    var fuse = new Fuse(pages, fuseOptions);
-    var result = fuse.search(searchQuery);
-    console.log({"matches":result});
-    if(result.length > 0){
-      populateResults(result);
-    }else{
-      $('#search-results').append("<p>No matches found</p>");
-    }
-  });
-}
-
-function populateResults(result){
-  $.each(result,function(key,value){
-    var contents= value.item.contents;
-    var snippet = "";
-    var snippetHighlights=[];
-    var tags =[];
-    if( fuseOptions.tokenize ){
-      snippetHighlights.push(searchQuery);
-    }else{
-      $.each(value.matches,function(matchKey,mvalue){
-        if(mvalue.key == "tags" || mvalue.key == "categories" ){
-          snippetHighlights.push(mvalue.value);
-        }else if(mvalue.key == "contents"){
-          start = mvalue.indices[0][0]-summaryInclude>0?mvalue.indices[0][0]-summaryInclude:0;
-          end = mvalue.indices[0][1]+summaryInclude<contents.length?mvalue.indices[0][1]+summaryInclude:contents.length;
-          snippet += contents.substring(start,end);
-          snippetHighlights.push(mvalue.value.substring(mvalue.indices[0][0],mvalue.indices[0][1]-mvalue.indices[0][0]+1));
+    request.onload = function () {
+        if (request.status >= 200 && request.status < 400) {
+            jsonContent = JSON.parse(request.responseText);
+            //console.log("index:", jsonContent);
+            var titleContentOptions = JSON.parse(JSON.stringify(fuseOptions));
+            titleContentOptions.keys = titleContentKeys;
+            titleContentSearcher = new Fuse(jsonContent, titleContentOptions);
+            var allContentOptions = JSON.parse(JSON.stringify(fuseOptions));
+            allContentOptions.keys = allContentKeys;
+            allContentSearcher = new Fuse(jsonContent, allContentOptions);
+        } else {
+            var err = request.status + ", " + error;
+            console.error("Error setting Hugo index file:", json, err);
         }
-      });
+    };
+   request.send();
+}
+
+// Hook up event handler on the input field
+function initUI() {
+    searchResultsList = document.getElementById("results");
+    var searchUserInput = document.getElementById("search");
+    searchUserInput.onkeyup = function () {
+        while (searchResultsList.firstChild) {
+            searchResultsList.removeChild(searchResultsList.firstChild);
+        }
+
+        // Only trigger a search when minimumChars, at least, have been provided
+        var query = searchUserInput.value.trim();
+        if (query.length < minimumChars) {
+            return;
+        }
+
+        var results = titleContentSearcher.search(query),
+            allResults = allContentSearcher.search(query);
+        renderResults(results, allResults);
+    };
+}
+
+/**
+ * Display the first maxResults
+ * @param  {Array} results to display
+ */
+function renderResults(results, allResults) {
+    if (results.length <1) {
+        return;
     }
 
-    if(snippet.length<1){
-      snippet += contents.substring(0,summaryInclude*2);
+    function displayableScore(score) {
+        return (100 - (score * 100)).toFixed(2);
     }
-    //pull template from hugo templarte definition
-    var templateDefinition = $('#search-result-template').html();
-    //replace values
-    var output = render(templateDefinition,{key:key,title:value.item.title,link:value.item.permalink,tags:value.item.tags,categories:value.item.categories,snippet:snippet});
-    $('#search-results').append(output);
 
-    $.each(snippetHighlights,function(snipkey,snipvalue){
-      $("#summary-"+key).mark(snipvalue);
+    // Show the first maxResults matches
+    var resultsSoFar = 0;
+    results.slice(0, maxResults).forEach(function (result) {
+        var li = document.createElement('li');
+        var ahref = document.createElement('a');
+        ahref.href = result.item.permalink;
+        ahref.text = result.item.title;
+        li.append(ahref);
+        if (showScores) {
+            li.append(document.createTextNode(" - Score:" + displayableScore(result.score)));
+        }
+        searchResultsList.appendChild(li);
+        resultsSoFar += 1;
     });
-
-  });
-}
-
-function param(name) {
-    return decodeURIComponent((location.search.split(name + '=')[1] || '').split('&')[0]).replace(/\+/g, ' ');
-}
-
-function render(templateString, data) {
-  var conditionalMatches,conditionalPattern,copy;
-  conditionalPattern = /\$\{\s*isset ([a-zA-Z]*) \s*\}(.*)\$\{\s*end\s*}/g;
-  //since loop below depends on re.lastInxdex, we use a copy to capture any manipulations whilst inside the loop
-  copy = templateString;
-  while ((conditionalMatches = conditionalPattern.exec(templateString)) !== null) {
-    if(data[conditionalMatches[1]]){
-      //valid key, remove conditionals, leave contents.
-      copy = copy.replace(conditionalMatches[0],conditionalMatches[2]);
-    }else{
-      //not valid, remove entire section
-      copy = copy.replace(conditionalMatches[0],'');
+    if (resultsSoFar < maxResults) {
+        // Fill in additional from allResults, not duplicating existing results
+        allResults.slice(resultsSoFar, maxResults).forEach(function (result) {
+            var li = document.createElement('li');
+            var ahref = document.createElement('a');
+            ahref.href = result.item.permalink;
+            ahref.text = result.item.title;
+            li.append(ahref);
+            if (showScores) {
+                li.append(document.createTextNode(" - *Score:" + displayableScore(result.score)));
+            }
+            searchResultsList.appendChild(li);
+            resultsSoFar += 1;
+        });
     }
-  }
-  templateString = copy;
-  //now any conditionals removed we can do simple substitution
-  var key, find, re;
-  for (key in data) {
-    find = '\\$\\{\\s*' + key + '\\s*\\}';
-    re = new RegExp(find, 'g');
-    templateString = templateString.replace(re, data[key]);
-  }
-  return templateString;
+    if ((allResults.length - results.length) > maxResults) {
+        // Tell user there are more yet
+        var li = document.createElement('li');
+        var p = document.createElement('p');
+        p.appendChild(document.createTextNode("... and " + ((allResults.length - results.length) - maxResults) + " more"));
+        li.append(p);
+        searchResultsList.appendChild(li);
+    };
 }
+
+// Let's get started
+initFuse();
+
+document.addEventListener("DOMContentLoaded", function () {
+    initUI();
+});

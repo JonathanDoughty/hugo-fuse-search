@@ -4,10 +4,15 @@
      $results,
      pagesIndex,
      json = '/index.json',
+     titleBoost =10,
+     tagBoost = 2,
+     fuzzyWordMin = 3,
      minimumChars = 3,
+     saturation = 1.4,     // Default = 1.2; > slows down saturation of common words
+     docLengthAdjust = 0,  // 0 - 1; default = .75 0; 0 reduces effect of document length 
      maxResults = 10;
 
- // Initialize lunrjs using hugo generated index file
+ // Initialize lunr.js using hugo generated index file
  function initLunr() {
    var request = new XMLHttpRequest();
    request.open('GET', json, true);
@@ -16,25 +21,25 @@
      if (request.status >= 200 && request.status < 400) {
 
        pagesIndex = JSON.parse(request.responseText);
-       console.log("index:", pagesIndex);
+       //console.log("index:", pagesIndex);
 
        // Set up lunrjs by declaring the fields we use
        // and their boost level for the ranking
        lunrIndex = lunr(function () {
          this.field("title", {
-           boost: 10
+           boost: titleBoost
          });
          this.field("tags", {
-           boost: 5
+           boost: tagBoost
          });
          this.field("contents");
          // Similarity tuning - see https://lunrjs.com/guides/customising.html
-         this.k1(1.4);  // Default = 1.2; > slows down saturation of common words
-         this.b(0);     // 0 - 1; default = .75 0; 0 reduces effect of document length 
+         this.k1(saturation);
+         this.b(docLengthAdjust);
 
          // ref is the result item identifier (the page URL)
          this.ref("permalink");
-         this.add({ field: "test", text: 'at least one entry' });
+         //this.add({ field: "test", text: 'at least one entry' });
          for (var i = 0; i < pagesIndex.length; ++i) {
            this.add(pagesIndex[i]);
          }
@@ -64,13 +69,15 @@
      }
 
      //add some fuzzyness to the string matching to help with spelling mistakes.
-     var fuzzLength = Math.round(Math.min(Math.max(query.length / 4, 1), 3));
+     var wordCount = query.split(' ').length;
+     var fuzzLength = Math.round(Math.min(Math.max(query.length / (minimumChars * wordCount), 1), 3));
      var fuzzyQuery;
-     if (query.split(' ').length > 1) {
-        // For single word matches no fuzzyness seemed to work better
-        fuzzyQuery = query + '~' + fuzzLength;
-     } else {
+     if (wordCount <= fuzzyWordMin) {
+        // For few word matches no fuzzyness seems to work better
         fuzzyQuery = query;
+     } else {
+        // For longer queries add some fuzziness
+        fuzzyQuery = query + '~' + fuzzLength;
      }
      var results = search(fuzzyQuery);
      renderResults(results);
@@ -89,7 +96,8 @@
    //  {ref: "/section/page1", score: 0.2725657778206127}
    // Our result:
    //  {title:"Page1", permalink:"/section/page1", ...}
-   return lunrIndex.search(query).map(function (result) {
+   var searchResults = lunrIndex.search(query);
+   return searchResults.map(function (result) {
      return pagesIndex.filter(function (page) {
        return page.permalink === result.ref;
      })[0];
@@ -115,6 +123,13 @@
      li.append(ahref);
      $results.appendChild(li);
    });
+   if (results.length > maxResults) {
+       var li = document.createElement('li');
+       var p = document.createElement('p');
+       p.appendChild(document.createTextNode("... and " + (results.length - maxResults) + " more"));
+       li.append(p);
+       $results.appendChild(li);
+   };
  }
 
  // Let's get started
@@ -122,4 +137,4 @@
 
  document.addEventListener("DOMContentLoaded", function () {
    initUI();
- })
+ });
