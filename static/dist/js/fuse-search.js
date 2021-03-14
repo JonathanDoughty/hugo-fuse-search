@@ -7,6 +7,7 @@ var titleContentSearcher,
     json = '/index.json',
     minimumChars = 3,
     showScores = true,
+    useAllContent = false,
     maxResults = 10;
 
 var fuseOptions = {
@@ -46,9 +47,11 @@ function initFuse() {
             var titleContentOptions = JSON.parse(JSON.stringify(fuseOptions));
             titleContentOptions.keys = titleContentKeys;
             titleContentSearcher = new Fuse(jsonContent, titleContentOptions);
-            var allContentOptions = JSON.parse(JSON.stringify(fuseOptions));
-            allContentOptions.keys = allContentKeys;
-            allContentSearcher = new Fuse(jsonContent, allContentOptions);
+            if (useAllContent) {
+                var allContentOptions = JSON.parse(JSON.stringify(fuseOptions));
+                allContentOptions.keys = allContentKeys;
+                allContentSearcher = new Fuse(jsonContent, allContentOptions);
+            }
         } else {
             var err = request.status + ", " + error;
             console.error("Error setting Hugo index file:", json, err);
@@ -72,8 +75,11 @@ function initUI() {
             return;
         }
 
-        var results = titleContentSearcher.search(query),
-            allResults = allContentSearcher.search(query);
+        var results = titleContentSearcher.search(query);
+        var allResults;
+        if (useAllContent) {
+            allResults  = allContentSearcher.search(query);
+        }
         renderResults(results, allResults);
     };
 }
@@ -92,7 +98,9 @@ function renderResults(results, allResults) {
     }
 
     // Show the first maxResults matches
-    var resultsSoFar = 0;
+    var resultsSoFar = 0,
+        remaining = results.length;
+
     results.slice(0, maxResults).forEach(function (result) {
         var li = document.createElement('li');
         var ahref = document.createElement('a');
@@ -105,8 +113,10 @@ function renderResults(results, allResults) {
         searchResultsList.appendChild(li);
         resultsSoFar += 1;
     });
-    if (resultsSoFar < maxResults) {
+
+    if (resultsSoFar < maxResults && useAllContent) {
         // Fill in additional from allResults, not duplicating existing results
+        // assuming the first resultsSoFar duplicate those above since keys are a superset.
         allResults.slice(resultsSoFar, maxResults).forEach(function (result) {
             var li = document.createElement('li');
             var ahref = document.createElement('a');
@@ -119,12 +129,15 @@ function renderResults(results, allResults) {
             searchResultsList.appendChild(li);
             resultsSoFar += 1;
         });
+        remaining = allResults.length - resultsSoFar;
+    } else {
+        remaining -= resultsSoFar;
     }
-    if ((allResults.length - results.length) > maxResults) {
+    if (resultsSoFar < maxResults && remaining > 0) {
         // Tell user there are more yet
         var li = document.createElement('li');
         var p = document.createElement('p');
-        p.appendChild(document.createTextNode("... and " + ((allResults.length - results.length) - maxResults) + " more"));
+        p.appendChild(document.createTextNode("... and " + remaining + " more"));
         li.append(p);
         searchResultsList.appendChild(li);
     };
