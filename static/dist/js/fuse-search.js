@@ -39,7 +39,8 @@ function initFuseWithContent() {
 function initUI() {
   searchResultsList = document.getElementById("results");
   var searchUserInput = document.getElementById("search");
-  searchUserInput.onkeyup = function () {
+
+  function doSearch() {
     while (searchResultsList.firstChild) {
       searchResultsList.removeChild(searchResultsList.firstChild);
     }
@@ -60,6 +61,19 @@ function initUI() {
     }
     renderResults(results, allResults);
   };
+
+  function delay(callback, ms) {
+    var timer = 0;
+    return function() {
+      var context = this, args = arguments;
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        callback.apply(context, args);
+      }, ms || 0);
+    };
+  }
+
+  searchUserInput.onkeyup = delay(doSearch, 500);
 }
 
 /**
