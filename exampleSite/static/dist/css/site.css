@@ -1,0 +1,6 @@
+.search_item {
+    padding-top: 5px;
+    border-bottom-style: solid;  /* tachyon .bb */
+    border-bottom-width: 1px;  /* tachyon .bb */
+    border-color: #aaa;  /* tachyon .b--light-silver */
+}

@@ -115,17 +115,24 @@ function renderResults(results, allResults) {
     return summary;
   }
 
-  // Show the first maxResults matches
-  var resultsSoFar = [],
-      remaining = results.length;
-
-  results.slice(0, maxResults).forEach(function (result) {
+  function list_item(result) {
     var li = document.createElement('li');
+    var classes = li.getAttribute('class');
+    li.setAttribute('class', classes ? classes + ' ' : '' + 'search_item');
     var ahref = document.createElement('a');
     ahref.href = result.item.permalink;
     ahref.text = result.item.title;
     li.append(ahref);
     li.append(document.createTextNode(" - " + summarize(result.item, result.score)));
+    return li;
+  }
+
+  // Show the first maxResults matches
+  var resultsSoFar = [],
+      remaining = results.length;
+
+  results.slice(0, maxResults).forEach(function (result) {
+    var li = list_item(result);
     searchResultsList.appendChild(li);
     resultsSoFar.push(result.item.permalink);
   });
@@ -139,12 +146,7 @@ function renderResults(results, allResults) {
       // Maybe you want to filter out low scoring results too?
       // Maybe anything less than 20% of the top scoring item?
       // Or perhaps when the score is less than half of the preceeding score?
-      var li = document.createElement('li');
-      var ahref = document.createElement('a');
-      ahref.href = result.item.permalink;
-      ahref.text = result.item.title;
-      li.append(ahref);
-      li.append(document.createTextNode(" - " + summarize(result.item, result.score)));
+      var li = list_item(result);
       searchResultsList.appendChild(li);
       resultsSoFar.push(result.item.permalink);
     });
